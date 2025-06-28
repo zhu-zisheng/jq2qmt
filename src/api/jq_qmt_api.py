@@ -13,7 +13,7 @@ except:
     import src.api.jq_config as jq_config
 
 class JQQMTAPI:
-    def __init__(self, api_url=jq_config.API_URL, private_key_file=jq_config.PRIVATE_KEY_FILE, client_id="default_client", use_crypto_auth=jq_config.USE_CRYPTO_AUTH, simple_api_key=None):
+    def __init__(self, api_url=jq_config.API_URL, private_key_pem=None, private_key_file=jq_config.PRIVATE_KEY_FILE, client_id="default_client", use_crypto_auth=jq_config.USE_CRYPTO_AUTH, simple_api_key=None):
         """初始化API客户端
         
         Args:
@@ -27,19 +27,30 @@ class JQQMTAPI:
         self.client_id = client_id
         self.use_crypto_auth = use_crypto_auth
         self.simple_api_key = simple_api_key
-        
+
+        self.private_key = None
         if use_crypto_auth:
-            self.private_key = serialization.load_pem_private_key(
-                read_file(private_key_file),
-                password=None,
-                backend=default_backend()
-            )
+            if private_key_pem:
+                self.private_key = serialization.load_pem_private_key(
+                    private_key_pem.encode("utf-8"),
+                    password=None,
+                    backend=default_backend()
+                )
+            else:
+                self.private_key = serialization.load_pem_private_key(
+                    read_file(private_key_file),
+                    password=None,
+                    backend=default_backend()
+                )
     
     def _create_auth_header(self):
         """创建认证头"""
         if not self.use_crypto_auth:
             # 简单API密钥认证
-            return {'X-API-Key': 'your-simple-api-key-here'}
+            api_key = self.simple_api_key or getattr(jq_config, 'SIMPLE_API_KEY', None)
+            if not api_key:
+                raise Exception('未提供简单API密钥')
+            return {'X-API-Key': api_key}
         
         if not self.private_key:
             raise Exception("使用加密认证时必须提供私钥")
